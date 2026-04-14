@@ -36,10 +36,6 @@
         button.generate-btn { background: #48bb78; }
         button.upload-btn { background: #ed8936; }
         button.control-btn { background: #667eea; }
-        .ai-btn { background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%); color: white; border: none; }
-        .ai-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(236, 72, 153, 0.4); }
-        .ai-input { width: 100%; padding: 12px; margin-bottom: 15px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px; transition: all 0.3s; }
-        .ai-input:focus { outline: none; border-color: #a855f7; box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1); }
         .cropper-container { max-height: 400px; }
         @media (max-width: 600px) { .container { padding: 10px; } .buttons { grid-template-columns: 1fr; } .image-settings { grid-template-columns: 1fr; } }
     </style>
@@ -73,20 +69,6 @@
             <div class="buttons">
                 <button id="connectEspBtn" class="control-btn" style="background-color: #0f766e;">Kết Nối ESP32-C3</button>
                 <button id="syncEspTimeBtn" disabled="" class="control-btn" style="background-color: #14b8a6;">Đồng Bộ Giờ Cho ESP32</button>
-            </div>
-        </div>
-
-        <!-- Thẻ AI Gemini -->
-        <div class="card">
-            <h2 style="margin-bottom: 20px; color: #4a5568;">✨ Sáng Tạo Với AI (Gemini)</h2>
-            <p style="font-size: 14px; color: #666; margin-bottom: 15px;">Điền API Key của bạn để sử dụng AI. Nhập ý tưởng và nhấn vẽ.</p>
-            
-            <input type="password" id="geminiApiKey" class="ai-input" placeholder="🔑 Nhập API Key của Google Gemini (Sẽ tự động lưu lại)...">
-            <input type="text" id="aiPrompt" class="ai-input" placeholder="💡 Nhập ý tưởng (VD: một chú mèo, núi non hùng vĩ)...">
-            
-            <div class="buttons">
-                <button id="aiQuoteBtn" class="ai-btn">✨ Tạo Châm Ngôn Ngẫu Nhiên</button>
-                <button id="aiImageBtn" class="ai-btn">✨ Vẽ Ảnh Bằng AI</button>
             </div>
         </div>
 
@@ -192,20 +174,6 @@
         const progressBar = document.getElementById('progress-bar');
         const imageCode = document.getElementById('imageCode');
         const imagePreview = document.getElementById('imagePreview');
-
-        // AI DOM Elements
-        const apiKeyInput = document.getElementById('geminiApiKey');
-        const aiPrompt = document.getElementById('aiPrompt');
-        const aiQuoteBtn = document.getElementById('aiQuoteBtn');
-        const aiImageBtn = document.getElementById('aiImageBtn');
-
-        // Khôi phục API Key từ bộ nhớ đệm
-        if (localStorage.getItem('geminiApiKey')) {
-            apiKeyInput.value = localStorage.getItem('geminiApiKey');
-        }
-        apiKeyInput.addEventListener('change', () => {
-            localStorage.setItem('geminiApiKey', apiKeyInput.value.trim());
-        });
 
         // Nút chế độ
         const syncTimeBtn = document.getElementById('syncTimeBtn');
@@ -339,103 +307,6 @@
                 return true;
             } catch (error) { updateStatus('Gửi lệnh thất bại: ' + error); return false; }
         }
-
-        // --- GEMINI AI INTEGRATION ---
-        async function fetchWithRetry(url, options, maxRetries = 5) {
-            const delays = [1000, 2000, 4000, 8000, 16000];
-            for (let i = 0; i < maxRetries; i++) {
-                try {
-                    const response = await fetch(url, options);
-                    if (!response.ok) throw new Error(`Lỗi HTTP: ${response.status}`);
-                    return await response.json();
-                } catch (e) {
-                    if (i === maxRetries - 1) throw e;
-                    await new Promise(r => setTimeout(r, delays[i]));
-                }
-            }
-        }
-
-        function drawTextToSourceCanvas(text) {
-            const ctx = currentSourceCanvas.getContext('2d');
-            ctx.fillStyle = 'white'; ctx.fillRect(0, 0, 256, 128);
-            ctx.fillStyle = 'black'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            
-            if (text.length < 20) ctx.font = 'bold 24px Arial';
-            else if (text.length < 50) ctx.font = 'bold 18px Arial';
-            else ctx.font = 'bold 14px Arial';
-
-            const words = text.split(' '); let line = ''; let y = 128 / 2 - 10;
-            const lineHeight = 24; const maxWidth = 240;
-            if (text.length > 30) y -= 15;
-
-            for(let n = 0; n < words.length; n++) {
-                let testLine = line + words[n] + ' ';
-                let metrics = ctx.measureText(testLine);
-                if (metrics.width > maxWidth && n > 0) {
-                    ctx.fillText(line, 256 / 2, y);
-                    line = words[n] + ' '; y += lineHeight;
-                } else { line = testLine; }
-            }
-            ctx.fillText(line, 256 / 2, y);
-            renderToPreviewAndCode();
-        }
-
-        function drawImageBase64ToSource(base64Url) {
-            return new Promise((resolve) => {
-                const img = new Image();
-                img.onload = () => {
-                    const ctx = currentSourceCanvas.getContext('2d');
-                    ctx.fillStyle = 'white'; ctx.fillRect(0, 0, 256, 128);
-                    ctx.drawImage(img, 0, 0, 256, 128);
-                    renderToPreviewAndCode();
-                    resolve();
-                };
-                img.src = base64Url;
-            });
-        }
-
-        function checkApiKey() {
-            const key = apiKeyInput.value.trim();
-            if (!key) {
-                alert("Vui lòng nhập API Key của Gemini trước khi sử dụng AI!");
-                return false;
-            }
-            return key;
-        }
-
-        aiQuoteBtn.onclick = async () => {
-            const key = checkApiKey(); if(!key) return;
-            updateStatus('✨ Đang nhờ Gemini nghĩ một câu châm ngôn...');
-            aiQuoteBtn.disabled = true; aiImageBtn.disabled = true;
-            try {
-                const prompt = "Viết một câu châm ngôn ngắn gọn, truyền cảm hứng (dưới 15 từ) bằng tiếng Việt. Không dùng ngoặc kép.";
-                const payload = { contents: [{ parts: [{ text: prompt }] }] };
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${key}`;
-                const data = await fetchWithRetry(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "Luôn mỉm cười và vững bước!";
-                updateStatus(`✨ Đã tạo: "${text}"`);
-                drawTextToSourceCanvas(text);
-                updateStatus('👉 Nhấn "TẢI ẢNH LÊN MÀN HÌNH" để đẩy lên.');
-            } catch (error) { updateStatus('❌ Lỗi tạo chữ: ' + error.message); } finally { aiQuoteBtn.disabled = false; aiImageBtn.disabled = false; }
-        };
-
-        aiImageBtn.onclick = async () => {
-            const key = checkApiKey(); if(!key) return;
-            const userIdea = aiPrompt.value.trim() || "một bông hoa";
-            updateStatus(`✨ Đang nhờ Imagen vẽ: "${userIdea}"...`);
-            aiQuoteBtn.disabled = true; aiImageBtn.disabled = true;
-            try {
-                const promptText = `A minimalist black and white line art drawing of ${userIdea}, simple flat vector illustration, thick black lines, solid white background, no shading, optimized for 1-bit monochrome e-ink display.`;
-                const payload = { instances: { prompt: promptText }, parameters: { sampleCount: 1 } };
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${key}`;
-                const data = await fetchWithRetry(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                const base64Str = data.predictions?.[0]?.bytesBase64Encoded;
-                if (!base64Str) throw new Error("Không lấy được ảnh từ API. (Có thể model này không khả dụng)");
-                const imageUrl = `data:image/png;base64,${base64Str}`;
-                await drawImageBase64ToSource(imageUrl);
-                updateStatus('✨ Đã vẽ xong! 👉 Nhấn "TẢI ẢNH LÊN MÀN HÌNH" để xem thành quả.');
-            } catch (error) { updateStatus('❌ Lỗi vẽ ảnh: ' + error.message); } finally { aiQuoteBtn.disabled = false; aiImageBtn.disabled = false; }
-        };
 
         // --- ĐIỀU KHIỂN & ĐỒNG BỘ DA14585 ---
         connectBtn.onclick = async () => {
