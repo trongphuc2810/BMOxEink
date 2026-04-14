@@ -56,7 +56,6 @@
         
         /* Bố cục Grid */
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
         .flex-row { display: flex; gap: 20px; flex-wrap: wrap; }
         .flex-col { flex: 1; min-width: 250px; display: flex; flex-direction: column; gap: 10px; }
         
@@ -105,7 +104,7 @@
         .cropper-actions { display: flex; gap: 10px; margin-top: 15px; }
 
         @media (max-width: 768px) {
-            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+            .grid-2 { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -212,6 +211,10 @@
                         <label>Cường độ Dithering: <span id="val-diffusion">50</span></label>
                         <input type="range" id="diffusion" min="0" max="100" value="50">
                     </div>
+                    <div class="form-group">
+                        <label>Độ trễ gửi lệnh (ms): <span id="val-interval">20</span></label>
+                        <input type="range" id="confirmInterval" min="0" max="100" value="20">
+                    </div>
                 </div>
 
                 <!-- Preview & Upload -->
@@ -274,6 +277,9 @@
         function log(msg) {
             consoleLog.textContent += `\n[${new Date().toLocaleTimeString()}] ${msg}`;
             consoleLog.scrollTop = consoleLog.scrollHeight;
+        }
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
         }
 
         // ================= KHỞI TẠO & LẮNG NGHE SỰ KIỆN =================
@@ -374,6 +380,9 @@
             document.getElementById('diffusion').addEventListener('input', e => {
                 document.getElementById('val-diffusion').textContent = e.target.value;
                 processImage();
+            });
+            document.getElementById('confirmInterval').addEventListener('input', e => {
+                document.getElementById('val-interval').textContent = e.target.value;
             });
             document.getElementById('epd-dither').addEventListener('change', processImage);
 
@@ -543,66 +552,73 @@
             document.getElementById('btn-upload-eink').disabled = false;
         }
 
-        // ================= XUẤT HEX & TRUYỀN BLUETOOTH =================
-        function canvasToBytes(mode = 'bw') {
-            const w = epdConfig.w; const h = epdConfig.h;
-            const imgData = ctxP.getImageData(0, 0, w, h).data;
+        // ================= XUẤT HEX & TRUYỀN BLUETOOTH (TUÂN THỦ CÔNG CỤ WEB) =================
+        function hexToBytes(hex) {
+            var bytes = [];
+            for (let c = 0; c < hex.length; c += 2) bytes.push(parseInt(hex.substr(c, 2), 16));
+            return new Uint8Array(bytes);
+        }
+        function bytesToHex(data) {
+            return new Uint8Array(data).reduce(function (memo, i) { return memo + ("0" + i.toString(16)).slice(-2); }, "");
+        }
+        function intToHex(intIn, bytes = 4) {
+            return intIn.toString(16).padStart(bytes * 2, '0');
+        }
+
+        // BĂM ẢNH THÀNH MẢNG THEO CHUẨN GỐC
+        function canvas2bytes(canvas, type = 'bw') {
+            const ctx = canvas.getContext("2d");
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const arr = [];
-            
-            // Xử lý quét: TUYỆT ĐỐI TUÂN THỦ "CONG CU WEB" ĐỂ TRÁNH LỖI SỌC
-            if (w === 250 || w === 212 || w === 296) {
-                // Quét từ góc phải-trên xuống: Cột (x giảm dần), Hàng (y tăng dần)
-                let buffer = [];
-                for (let x = w - 1; x >= 0; x--) {
-                    for (let y = 0; y < h; y++) {
-                        const cIdx = (w * 4 * y) + x * 4;
-                        let bit = 0;
-                        if (mode === 'bw') {
-                            bit = (imgData[cIdx] > 0 && imgData[cIdx+1] > 0 && imgData[cIdx+2] > 0) ? 1 : 0;
-                        } else {
-                            bit = (imgData[cIdx] > 0 && imgData[cIdx+1] === 0 && imgData[cIdx+2] === 0) ? 1 : 0;
-                        }
-                        buffer.push(bit);
-                        if (buffer.length === 8) {
-                            arr.push(parseInt(buffer.join(''), 2));
-                            buffer = [];
-                        }
+            let buffer = [];
+            for (let y = 0; y < canvas.height; y++) {
+                for (let x = 0; x < canvas.width; x++) {
+                    const index = (canvas.width * 4 * y) + x * 4;
+                    if (type !== 'bwr') {
+                        buffer.push(imageData.data[index] > 0 && imageData.data[index + 1] > 0 && imageData.data[index + 2] > 0 ? 1 : 0);
+                    } else {
+                        buffer.push(imageData.data[index] > 0 && imageData.data[index + 1] === 0 && imageData.data[index + 2] === 0 ? 1 : 0);
                     }
-                }
-                if(buffer.length > 0) {
-                    while(buffer.length < 8) buffer.push(0);
-                    arr.push(parseInt(buffer.join(''), 2));
-                }
-            } else {
-                // Màn chuẩn quét trái sang phải, trên xuống dưới
-                let buffer = [];
-                for (let y = 0; y < h; y++) {
-                    for (let x = 0; x < w; x++) {
-                        const cIdx = (w * 4 * y) + x * 4;
-                        let bit = 0;
-                        if (mode === 'bw') {
-                            bit = (imgData[cIdx] > 0 && imgData[cIdx+1] > 0 && imgData[cIdx+2] > 0) ? 1 : 0;
-                        } else {
-                            bit = (imgData[cIdx] > 0 && imgData[cIdx+1] === 0 && imgData[cIdx+2] === 0) ? 1 : 0;
-                        }
-                        buffer.push(bit);
-                        if (buffer.length === 8) {
-                            arr.push(parseInt(buffer.join(''), 2));
-                            buffer = [];
-                        }
+                    if (buffer.length === 8) {
+                        arr.push(parseInt(buffer.join(''), 2));
+                        buffer = [];
                     }
-                }
-                if(buffer.length > 0) {
-                    while(buffer.length < 8) buffer.push(0);
-                    arr.push(parseInt(buffer.join(''), 2));
                 }
             }
-            return new Uint8Array(arr);
+            return arr;
+        }
+
+        function canvas2bytes_bw(canvas, type='bw') {
+            const ctx = canvas.getContext("2d");
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const arr = [];
+            let buffer = [];
+            for (let x = canvas.width - 1; x >= 0; x--) {
+                for (let y = 0; y < canvas.height; y++) {
+                    const index = (canvas.width * 4 * y) + x * 4;
+                    if (type !== 'bwr') {
+                        buffer.push(imageData.data[index] > 0 && imageData.data[index+1] > 0 && imageData.data[index+2] > 0 ? 1 : 0);
+                    } else {
+                        buffer.push(imageData.data[index] > 0 && imageData.data[index+1] === 0 && imageData.data[index+2] === 0 ? 1 : 0);
+                    }
+                    if (buffer.length === 8) {
+                        arr.push(parseInt(buffer.join(''), 2));
+                        buffer = [];
+                    }
+                }
+            }
+            return arr;
         }
 
         function generateHex() {
             const modeStr = document.getElementById('epd-dither').value;
-            const arr = canvasToBytes(modeStr.startsWith('bwr') ? 'bwr' : 'bw');
+            const w = epdConfig.w;
+            let arr;
+            if (w == 296 || w == 250 || w == 212) {
+                arr = canvas2bytes_bw(canvasPreview, modeStr.startsWith('bwr') ? 'bwr' : 'bw');
+            } else {
+                arr = canvas2bytes(canvasPreview, modeStr.startsWith('bwr') ? 'bwr' : 'bw');
+            }
             let str = '';
             for (let i = 0; i < arr.length; i++) {
                 str += '0x' + arr[i].toString(16).padStart(2, '0').toUpperCase();
@@ -635,85 +651,85 @@
             } catch (e) { log('❌ Lỗi kết nối: ' + e); }
         };
 
-        async function daSendCmd(cmd, data = []) {
+        async function daSendCmdBytes(buf) {
             if(!daChar) return false;
             try {
-                const buf = new Uint8Array([cmd, ...data]);
-                await daChar.writeValue(buf);
+                if (daChar.writeValueWithResponse) {
+                    await daChar.writeValueWithResponse(buf);
+                } else {
+                    await daChar.writeValue(buf);
+                }
                 return true;
             } catch(e) { log('Lỗi gửi lệnh: ' + e); return false; }
+        }
+
+        async function daSendCmd(cmd, data = []) {
+            return await daSendCmdBytes(new Uint8Array([cmd, ...data]));
+        }
+
+        async function sendBufferData(value, type) {
+            log(`Bắt đầu truyền ảnh chế độ: ${type}, kích thước ${value.length} byte hex`);
+            let code = 'ff';
+            if (type === 'bwr') { code = '00'; }
+            let cod = '03';
+            if (value.length == 7000 || value.length == 18000) { cod = '04'; }
+            const step = 480;
+            let partIndex = 0;
+            for (let i = 0; i < value.length; i += step) {
+                const packetHex = cod + code + intToHex(i / 2, 2) + value.substring(i, i + step);
+                const packetBytes = hexToBytes(packetHex);
+                
+                await daSendCmdBytes(packetBytes);
+                
+                partIndex += 1;
+                const progress = Math.round(((i + step) / value.length) * 100);
+                document.getElementById('upload-progress').style.width = Math.min(100, progress) + '%';
+                
+                const confirmInterval = parseInt(document.getElementById('confirmInterval').value) || 20;
+                await delay(confirmInterval);
+            }
         }
 
         document.getElementById('btn-da-sync').onclick = async () => {
             if(!daChar) return;
             const now = Math.floor(Date.now() / 1000) + 8 * 3600; // UTC+8
             const buf = new Uint8Array([0xDD, (now>>24)&0xFF, (now>>16)&0xFF, (now>>8)&0xFF, now&0xFF]);
-            await daChar.writeValue(buf);
-            await new Promise(r=>setTimeout(r, 200)); await daSendCmd(0xE2);
+            await daSendCmdBytes(buf);
+            await delay(200); await daSendCmd(0xE2);
             log('Đã đồng bộ giờ (UTC+8).');
         };
 
-        document.getElementById('btn-da-img').onclick = async () => { await daSendCmd(0xE1, [0]); await new Promise(r=>setTimeout(r, 200)); await daSendCmd(0xE2); log('Chế độ Ảnh.'); };
-        document.getElementById('btn-da-time').onclick = async () => { await daSendCmd(0xE1, [2]); await new Promise(r=>setTimeout(r, 200)); await daSendCmd(0xE2); log('Chế độ Giờ.'); };
-        document.getElementById('btn-da-cal').onclick = async () => { await daSendCmd(0xE1, [1]); await new Promise(r=>setTimeout(r, 200)); await daSendCmd(0xE2); log('Chế độ Lịch.'); };
+        document.getElementById('btn-da-img').onclick = async () => { await daSendCmd(0xE1, [0]); await delay(200); await daSendCmd(0xE2); log('Chế độ Ảnh.'); };
+        document.getElementById('btn-da-time').onclick = async () => { await daSendCmd(0xE1, [2]); await delay(200); await daSendCmd(0xE2); log('Chế độ Giờ.'); };
+        document.getElementById('btn-da-cal').onclick = async () => { await daSendCmd(0xE1, [1]); await delay(200); await daSendCmd(0xE2); log('Chế độ Lịch.'); };
 
         document.getElementById('btn-upload-eink').onclick = async () => {
             if(!daChar) return alert('Chưa kết nối Bluetooth DA14585!');
             try {
+                const canvas = canvasPreview;
+                const w = canvas.width;
+                const h = canvas.height;
                 const modeStr = document.getElementById('epd-dither').value;
-                const w = epdConfig.w;
-                const h = epdConfig.h;
-                const dataArr = canvasToBytes('bw');
                 
-                log(`Bắt đầu truyền ảnh (BW)...`);
                 document.getElementById('btn-upload-eink').disabled = true;
+                document.getElementById('upload-progress').style.width = '0%';
                 
-                // Đồng bộ chính xác Header gửi đi (Chuẩn 4-Byte cho mọi kích thước để tránh lệch offset)
-                let cod = (dataArr.length === 3500 || dataArr.length === 9000) ? 0x04 : 0x03;
-                let offset = 0;
-                
-                while(offset < dataArr.length) {
-                    const chunk = Math.min(240, dataArr.length - offset);
-                    let packet = new Uint8Array(4 + chunk);
-                    
-                    packet[0] = cod; 
-                    packet[1] = 0xFF; // BW map = FF
-                    packet[2] = ((offset) >> 8) & 0xFF; 
-                    packet[3] = (offset) & 0xFF;
-                    for(let i=0; i<chunk; i++) packet[4+i] = dataArr[offset+i];
-                    
-                    await daChar.writeValue(packet);
-                    offset += chunk;
-                    uploadProgress.style.width = Math.round((offset/dataArr.length)*100) + '%';
-                    await new Promise(r => setTimeout(r, 20));
-                }
-
-                // Gửi màu đỏ (Bỏ qua với 250 và 212 vì chúng là màn đơn sắc theo code gốc)
-                if (modeStr.startsWith('bwr') && w !== 250 && w !== 212) {
-                    const redArr = canvasToBytes('bwr');
-                    log(`Bắt đầu truyền map Đỏ...`);
-                    offset = 0;
-                    while(offset < redArr.length) {
-                        const chunk = Math.min(240, redArr.length - offset);
-                        let packet = new Uint8Array(4 + chunk);
-                        
-                        packet[0] = cod; 
-                        packet[1] = 0x00; // Red map = 00
-                        packet[2] = ((offset) >> 8) & 0xFF; 
-                        packet[3] = (offset) & 0xFF;
-                        for(let i=0; i<chunk; i++) packet[4+i] = redArr[offset+i];
-                        
-                        await daChar.writeValue(packet);
-                        offset += chunk;
-                        await new Promise(r => setTimeout(r, 20));
-                    }
-                }
-                
-                log('Truyền xong. Ra lệnh hiển thị...');
-                if (w === 280 || h === 180) {
-                    await daSendCmd(0xAA);
+                // GỌI HÀM BĂM ẢNH ĐÚNG CHUẨN CỦA "CONG CU WEB"
+                if (w == 296) {
+                     await sendBufferData(bytesToHex(canvas2bytes_bw(canvas)), 'bw');
+                     if (modeStr.startsWith('bwr')) await sendBufferData(bytesToHex(canvas2bytes_bw(canvas, 'bwr')), 'bwr');
+                } else if (w == 250 || w == 212) {
+                     await sendBufferData(bytesToHex(canvas2bytes_bw(canvas)), 'bw');
                 } else {
-                    await daSendCmd(0x01);
+                    await sendBufferData(bytesToHex(canvas2bytes(canvas)), 'bw');
+                    if (modeStr.startsWith('bwr')) await sendBufferData(bytesToHex(canvas2bytes(canvas, 'bwr')), 'bwr');
+                }
+                
+                await delay(300);
+                if (w == 280 || h == 180) { 
+                    await daSendCmdBytes(hexToBytes("AA")); 
+                } else { 
+                    await daSendCmdBytes(hexToBytes("01")); 
                 }
                 
                 log('HOÀN TẤT!');
