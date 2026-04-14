@@ -641,6 +641,10 @@
         const DA_CHR = '00001f1f-0000-1000-8000-00805f9b34fb';
 
         document.getElementById('btn-da-connect').onclick = async () => {
+            if (!navigator.bluetooth) {
+                alert('Trình duyệt này không hỗ trợ Bluetooth!\n👉 Trên iOS (iPhone/iPad): Vui lòng tải ứng dụng "Bluefy" từ App Store để kết nối.');
+                return;
+            }
             try {
                 log('Đang quét DA14585 (tiền tố DLG-)...');
                 daDevice = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: "DLG-" }], optionalServices: [DA_SVC] });
@@ -751,6 +755,10 @@
         // --- GIAO TIẾP BLUETOOTH ESP32 CUSTOM ---
         let espDev, espChar;
         document.getElementById('btn-esp-connect').onclick = async () => {
+            if (!navigator.bluetooth) {
+                alert('Trình duyệt này không hỗ trợ Bluetooth!\n👉 Trên iOS (iPhone/iPad): Vui lòng tải ứng dụng "Bluefy" từ App Store để kết nối.');
+                return;
+            }
             try {
                 espDev = await navigator.bluetooth.requestDevice({ filters: [{ services: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b'] }] });
                 const server = await espDev.gatt.connect();
