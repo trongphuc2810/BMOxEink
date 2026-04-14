@@ -495,40 +495,64 @@
         function canvasToBytes(mode = 'bw') {
             const w = epdConfig.w; const h = epdConfig.h;
             const imgData = ctxP.getImageData(0, 0, w, h).data;
-            const arr = new Uint8Array(Math.ceil((w * h) / 8));
-            let idx = 0; let buf = 0; let bitC = 0;
+            const arr = [];
             
-            // Xử lý quét: Màn 2.13" và 2.9" thường quét từ phải sang trái
-            if (w === 250 || w === 212 || w === 296) {
+            if (w === 256 && h === 128) {
+                // Quét dọc cho Mặc định cũ (256x128)
+                for (let x = 0; x < w; x++) {
+                    for (let y = 0; y < h; y += 8) {
+                        let byte = 0;
+                        for (let bit = 0; bit < 8; bit++) {
+                            if (y + bit < h) {
+                                const cIdx = ((y + bit) * w + x) * 4;
+                                let isWhite = (imgData[cIdx] > 128) ? 1 : 0;
+                                if(mode !== 'bw') isWhite = (imgData[cIdx] > 128 && imgData[cIdx+1] < 128) ? 1 : 0;
+                                byte |= (isWhite << (7 - bit));
+                            }
+                        }
+                        arr.push(byte);
+                    }
+                }
+            } else if (w === 250 || w === 212 || w === 296) {
+                // Quét từ phải sang trái, trên xuống dưới (2.13", 2.9")
+                let buffer = [];
                 for (let x = w - 1; x >= 0; x--) {
                     for (let y = 0; y < h; y++) {
                         const cIdx = (w * 4 * y) + x * 4;
-                        let bit = 0;
-                        if(mode === 'bw') {
-                            bit = (imgData[cIdx] < 128) ? 0 : 1; // 1=White, 0=Black
-                        } else {
-                            // BWR mode: Lọc điểm màu đỏ (R=255, G=0, B=0)
-                            bit = (imgData[cIdx] > 128 && imgData[cIdx+1] < 128) ? 1 : 0; 
+                        let isWhite = (imgData[cIdx] > 128) ? 1 : 0;
+                        if(mode !== 'bw') isWhite = (imgData[cIdx] > 128 && imgData[cIdx+1] < 128) ? 1 : 0;
+                        buffer.push(isWhite);
+                        if (buffer.length === 8) {
+                            arr.push(parseInt(buffer.join(''), 2));
+                            buffer = [];
                         }
-                        buf = (buf << 1) | bit;
-                        bitC++;
-                        if (bitC === 8) { arr[idx++] = buf; buf = 0; bitC = 0; }
                     }
                 }
+                if(buffer.length > 0) {
+                    while(buffer.length < 8) buffer.push(0);
+                    arr.push(parseInt(buffer.join(''), 2));
+                }
             } else {
-                // Màn chuẩn quét trái sang phải
+                // Quét ngang chuẩn (4.2", 7.5")
+                let buffer = [];
                 for (let y = 0; y < h; y++) {
                     for (let x = 0; x < w; x++) {
                         const cIdx = (w * 4 * y) + x * 4;
-                        let bit = (imgData[cIdx] < 128) ? 0 : 1;
-                        buf = (buf << 1) | bit;
-                        bitC++;
-                        if (bitC === 8) { arr[idx++] = buf; buf = 0; bitC = 0; }
+                        let isWhite = (imgData[cIdx] > 128) ? 1 : 0;
+                        if(mode !== 'bw') isWhite = (imgData[cIdx] > 128 && imgData[cIdx+1] < 128) ? 1 : 0;
+                        buffer.push(isWhite);
+                        if (buffer.length === 8) {
+                            arr.push(parseInt(buffer.join(''), 2));
+                            buffer = [];
+                        }
                     }
                 }
+                if(buffer.length > 0) {
+                    while(buffer.length < 8) buffer.push(0);
+                    arr.push(parseInt(buffer.join(''), 2));
+                }
             }
-            if(bitC > 0) { buf <<= (8 - bitC); arr[idx++] = buf; }
-            return arr;
+            return new Uint8Array(arr);
         }
 
         function generateHex() {
@@ -592,20 +616,35 @@
             if(!daChar) return alert('Chưa kết nối Bluetooth DA14585!');
             try {
                 const modeStr = document.getElementById('epd-dither').value;
+                const w = epdConfig.w;
+                const h = epdConfig.h;
                 const dataArr = canvasToBytes('bw');
                 
                 log(`Bắt đầu truyền ảnh (BW)...`);
                 document.getElementById('btn-upload-eink').disabled = true;
                 
+                const isLegacy256 = (w === 256 && h === 128);
                 let cod = (dataArr.length === 3500 || dataArr.length === 9000) ? 0x04 : 0x03;
                 let offset = 0;
                 
                 while(offset < dataArr.length) {
                     const chunk = Math.min(240, dataArr.length - offset);
-                    const packet = new Uint8Array(4 + chunk);
-                    packet[0] = cod; packet[1] = 0xFF; // BW map
-                    packet[2] = (offset >> 8) & 0xFF; packet[3] = offset & 0xFF;
-                    for(let i=0; i<chunk; i++) packet[4+i] = dataArr[offset+i];
+                    let packet;
+                    
+                    if (isLegacy256) {
+                        packet = new Uint8Array(3 + chunk);
+                        packet[0] = cod; 
+                        packet[1] = (offset >> 8) & 0xFF; 
+                        packet[2] = offset & 0xFF;
+                        for(let i=0; i<chunk; i++) packet[3+i] = dataArr[offset+i];
+                    } else {
+                        packet = new Uint8Array(4 + chunk);
+                        packet[0] = cod; 
+                        packet[1] = 0xFF; // BW map = FF
+                        packet[2] = ((offset) >> 8) & 0xFF; 
+                        packet[3] = (offset) & 0xFF;
+                        for(let i=0; i<chunk; i++) packet[4+i] = dataArr[offset+i];
+                    }
                     
                     await daChar.writeValue(packet);
                     offset += chunk;
@@ -613,16 +652,17 @@
                     await new Promise(r => setTimeout(r, 20));
                 }
 
-                // Nếu có chế độ đỏ thì gửi thêm map màu đỏ
-                if (modeStr.startsWith('bwr')) {
+                if (modeStr.startsWith('bwr') && !isLegacy256) {
                     const redArr = canvasToBytes('bwr');
                     log(`Bắt đầu truyền map Đỏ...`);
                     offset = 0;
                     while(offset < redArr.length) {
                         const chunk = Math.min(240, redArr.length - offset);
                         const packet = new Uint8Array(4 + chunk);
-                        packet[0] = cod; packet[1] = 0x00; // Red map
-                        packet[2] = (offset >> 8) & 0xFF; packet[3] = offset & 0xFF;
+                        packet[0] = cod; 
+                        packet[1] = 0x00; // Red map = 00
+                        packet[2] = ((offset) >> 8) & 0xFF; 
+                        packet[3] = (offset) & 0xFF;
                         for(let i=0; i<chunk; i++) packet[4+i] = redArr[offset+i];
                         
                         await daChar.writeValue(packet);
