@@ -760,14 +760,21 @@
                 return;
             }
             try {
-                espDev = await navigator.bluetooth.requestDevice({ filters: [{ services: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b'] }] });
+                // Thay đổi TẠI ĐÂY: Dùng namePrefix để quét cực nhạy
+                espDev = await navigator.bluetooth.requestDevice({ 
+                    filters: [{ namePrefix: 'BMO-' }],
+                    optionalServices: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b'] 
+                });
                 const server = await espDev.gatt.connect();
                 const service = await server.getPrimaryService('4fafc201-1fb5-459e-8fcc-c5c9c331914b');
                 espChar = await service.getCharacteristic('beb5483e-36e1-4688-b7f5-ea07361b26a8');
                 log('✅ Đã kết nối ESP32-C3!');
                 document.getElementById('btn-esp-connect').disabled = true;
                 document.getElementById('btn-esp-sync').disabled = false;
-            } catch (e) { log('Lỗi kết nối ESP32: ' + e); }
+            } catch (e) { 
+                log('Lỗi kết nối ESP32: ' + e); 
+                alert('Không thể kết nối. Hãy đảm bảo bạn đã nạp code C++ mới cho ESP32 và thiết bị có tên bắt đầu bằng "BMO-"');
+            }
         };
         
         document.getElementById('btn-esp-sync').onclick = async () => {
