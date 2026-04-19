@@ -83,10 +83,7 @@
             pointer-events: none;
         }
         
-        /* Ẩn cục thứ 2 để tập trung ánh sáng vào viền trên */
-        .ambient-orb-2 {
-            display: none;
-        }
+        .ambient-orb-2 { display: none; }
         
         body.dark-mode .ambient-orb { opacity: 0.35; background: #ff2a5f; }
 
@@ -132,7 +129,6 @@
             padding: 24px; 
             border: 1px solid var(--glass-border);
             transition: background-color 0.5s, border-color 0.5s, box-shadow 0.5s;
-            /* Tạo lớp xử lý độc lập để không bị xung đột với khối sáng chuyển động bên dưới */
             transform: translateZ(0);
             backface-visibility: hidden;
         }
@@ -212,11 +208,10 @@
         input[type="range"] { 
             -webkit-appearance: none;
             width: 100%;
-            height: 28px; /* Thanh dày dặn hơn */
-            border-radius: 14px; /* Bo cong hai đầu */
+            height: 28px;
+            border-radius: 14px;
             background: var(--slider-track);
             outline: none;
-            /* Gradient được điền qua JavaScript để tạo phần được làm đầy màu xanh */
             background-image: linear-gradient(var(--slider-fill), var(--slider-fill));
             background-repeat: no-repeat;
             box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05);
@@ -224,26 +219,19 @@
             margin: 10px 0;
             padding: 0;
         }
-        
-        /* Nút tròn ở đầu thanh trượt (Thumb) */
         input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
             height: 28px;
             width: 28px;
             border-radius: 50%;
             background: #ffffff;
-            /* Tạo bóng mờ (blur glow) xung quanh nút */
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2), 0 0 10px rgba(0,0,0,0.1);
             cursor: pointer;
             transition: transform 0.15s ease;
         }
-        
-        /* Hiệu ứng phóng to nhẹ khi giữ kéo */
         input[type="range"]:active::-webkit-slider-thumb {
             transform: scale(1.1); 
         }
-        
-        /* Dành cho Firefox */
         input[type="range"]::-moz-range-thumb {
             height: 28px;
             width: 28px;
@@ -304,6 +292,82 @@
         .img-container img { display: block; max-width: 100%; }
         .cropper-actions { display: flex; gap: 12px; margin-top: 16px; }
 
+        /* Kéo Thả (Drag & Drop Overlay) */
+        #drag-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 113, 227, 0.15);
+            backdrop-filter: blur(8px);
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            border: 6px dashed var(--apple-blue);
+            color: var(--apple-blue);
+            font-size: 2rem;
+            font-weight: 700;
+            pointer-events: none;
+        }
+        body.drag-active #drag-overlay { display: flex; }
+
+        /* Lịch Sử Lưu Ảnh (History Gallery) */
+        .history-wrapper {
+            margin-top: 20px;
+            width: 100%;
+        }
+        .history-list {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+        }
+        .history-list::-webkit-scrollbar { height: 6px; }
+        .history-list::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 3px; }
+        body.dark-mode .history-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); }
+        
+        .history-item {
+            position: relative;
+            flex: 0 0 auto;
+            width: 106px; /* Thu nhỏ theo tỷ lệ 212x104 (chia đôi) */
+            height: 52px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            background: white; /* E-ink luôn hiển thị nền trắng trên preview */
+        }
+        .history-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 6px;
+        }
+        .history-item:hover {
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            border: 2px solid var(--apple-blue);
+        }
+        .btn-history-delete {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            background: var(--apple-red);
+            color: white;
+            border: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            font-size: 14px;
+            line-height: 20px;
+            text-align: center;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            display: none;
+            padding: 0;
+        }
+        .history-item:hover .btn-history-delete { display: block; }
+        .btn-history-delete:hover { transform: scale(1.2); }
+
         hr { border: 0; border-top: 1px solid var(--input-border); margin: 16px 0; transition: border-color 0.5s; }
 
         @media (max-width: 768px) {
@@ -317,6 +381,9 @@
 </head>
 
 <body>
+    <!-- Lớp phủ khi kéo thả ảnh -->
+    <div id="drag-overlay">Thả Ảnh Vào Đây Để Chỉnh Sửa 📸</div>
+
     <!-- Vệt sáng lơ lửng phía sau -->
     <div class="ambient-orb"></div>
     <div class="ambient-orb-2"></div>
@@ -396,7 +463,7 @@
                     <hr>
 
                     <div class="form-group">
-                        <label>Tải ảnh lên</label>
+                        <label>Tải ảnh lên (Có thể Kéo thả ảnh vào trang Web)</label>
                         <input type="file" id="image-upload" class="form-control" accept="image/*">
                         
                         <!-- Vùng Cropper có xoay ảnh -->
@@ -457,18 +524,29 @@
                     </div>
                 </div>
 
-                <!-- Preview & Upload -->
+                <!-- Preview & Upload & History -->
                 <div class="flex-col">
                     <label style="font-weight: 500; font-size: 13px; color: var(--apple-text-secondary);">Kết Quả Xem Trước</label>
                     <div class="preview-box">
                         <canvas id="preview-canvas" width="212" height="104"></canvas>
                         
                         <button id="btn-upload-eink" class="btn btn-success" style="width: 100%; margin-top: 24px; font-size: 15px; padding: 14px;" disabled>
-                            Cập Nhật E-ink
+                            🚀 Cập Nhật E-ink
                         </button>
                         
                         <div class="progress-container">
                             <div id="upload-progress" class="progress-bar"></div>
+                        </div>
+                    </div>
+
+                    <!-- Khu vực Lịch Sử Ảnh -->
+                    <div class="history-wrapper">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <label style="font-weight: 500; font-size: 13px; color: var(--apple-text-secondary);">Lịch sử ảnh gần đây (Tối đa 5)</label>
+                            <button id="btn-save-history" class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;">Lưu nhanh</button>
+                        </div>
+                        <div id="history-gallery" class="history-list">
+                            <!-- Các ảnh lịch sử sẽ được Javascript nhét vào đây -->
                         </div>
                     </div>
                 </div>
@@ -503,7 +581,6 @@
             const themeBtn = document.getElementById('btn-theme-toggle');
             const body = document.body;
             
-            // Lấy preference đã lưu
             if (localStorage.getItem('bmo-theme') === 'dark') {
                 body.classList.add('dark-mode');
                 themeBtn.textContent = 'Giao diện Sáng';
@@ -527,7 +604,6 @@
             input.style.backgroundSize = `calc(${percent}% + (${14 - percent * 0.28}px)) 100%`;
         }
 
-        // Khởi tạo tất cả input range theo Apple style
         document.querySelectorAll('input[type="range"]').forEach(input => {
             updateSliderGradient(input);
             input.addEventListener('input', (e) => updateSliderGradient(e.target));
@@ -535,7 +611,7 @@
 
 
         // ================= CẤU HÌNH DOM & BIẾN TOÀN CỤC =================
-        let epdConfig = { w: 212, h: 104 }; // Mặc định 2.13" thường
+        let epdConfig = { w: 212, h: 104 }; 
         
         const canvasPreview = document.getElementById('preview-canvas');
         const ctxP = canvasPreview.getContext('2d', { willReadFrequently: true });
@@ -549,13 +625,150 @@
 
         let cropper = null;
 
-        // Tiện ích Log
+        // Tiện ích Log & Delay
         function log(msg) {
             consoleLog.textContent += `\n[${new Date().toLocaleTimeString()}] ${msg}`;
             consoleLog.scrollTop = consoleLog.scrollHeight;
         }
         function delay(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // ================= LỊCH SỬ ẢNH (LOCAL STORAGE) =================
+        const MAX_HISTORY = 5;
+
+        function loadHistory() {
+            const history = JSON.parse(localStorage.getItem('eink_history') || '[]');
+            renderHistoryUI(history);
+        }
+
+        function saveToHistory() {
+            const dataUrl = canvasPreview.toDataURL('image/png');
+            let history = JSON.parse(localStorage.getItem('eink_history') || '[]');
+
+            // Tránh lưu trùng lặp liên tục cùng 1 ảnh
+            if (history.length > 0 && history[0].dataUrl === dataUrl) return;
+
+            history.unshift({
+                id: Date.now(),
+                dataUrl: dataUrl,
+                width: epdConfig.w,
+                height: epdConfig.h
+            });
+
+            if (history.length > MAX_HISTORY) {
+                history.pop();
+            }
+
+            localStorage.setItem('eink_history', JSON.stringify(history));
+            renderHistoryUI(history);
+            log('Đã lưu ảnh vào lịch sử.');
+        }
+
+        function renderHistoryUI(history) {
+            const container = document.getElementById('history-gallery');
+            container.innerHTML = '';
+            if (history.length === 0) {
+                container.innerHTML = '<span style="color: var(--apple-text-secondary); font-size: 12px; margin-top: 5px;">Chưa có ảnh nào trong lịch sử.</span>';
+                return;
+            }
+
+            history.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                div.title = "Bấm để tải lại ảnh này";
+                div.innerHTML = `
+                    <img src="${item.dataUrl}" alt="History ${index}">
+                    <button class="btn-history-delete" onclick="deleteHistory(${item.id}, event)" title="Xóa ảnh này">×</button>
+                `;
+                div.querySelector('img').onclick = () => loadFromHistory(item);
+                container.appendChild(div);
+            });
+        }
+
+        function deleteHistory(id, event) {
+            event.stopPropagation(); // Tránh kích hoạt click load ảnh
+            let history = JSON.parse(localStorage.getItem('eink_history') || '[]');
+            history = history.filter(item => item.id !== id);
+            localStorage.setItem('eink_history', JSON.stringify(history));
+            renderHistoryUI(history);
+            log('Đã xóa ảnh khỏi lịch sử.');
+        }
+        window.deleteHistory = deleteHistory;
+
+        function loadFromHistory(item) {
+            // Tự động chuyển đổi kích thước khung màn hình theo ảnh lịch sử
+            epdConfig.w = item.width;
+            epdConfig.h = item.height;
+            document.getElementById('epd-size').value = `${item.width}x${item.height}`;
+            
+            canvasPreview.width = item.width; canvasPreview.height = item.height;
+            canvasSource.width = item.width; canvasSource.height = item.height;
+
+            const img = new Image();
+            img.onload = () => {
+                ctxS.clearRect(0, 0, item.width, item.height);
+                ctxS.drawImage(img, 0, 0);
+                processImage();
+                log(`Đã tải lại ảnh từ lịch sử (${item.width}x${item.height}).`);
+            };
+            img.src = item.dataUrl;
+        }
+
+        // ================= KÉO THẢ ẢNH (DRAG & DROP) =================
+        function initDragAndDrop() {
+            const dropZone = document.body;
+            let dragCounter = 0; // Xử lý nhấp nháy overlay khi drag qua các thành phần con
+
+            dropZone.addEventListener('dragenter', (e) => {
+                e.preventDefault();
+                dragCounter++;
+                document.body.classList.add('drag-active');
+            });
+
+            dropZone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dragCounter--;
+                if (dragCounter === 0) {
+                    document.body.classList.remove('drag-active');
+                }
+            });
+
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault(); // Cần thiết để cho phép drop
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dragCounter = 0;
+                document.body.classList.remove('drag-active');
+
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    const file = e.dataTransfer.files[0];
+                    if (file.type.startsWith('image/')) {
+                        loadImageToCropper(file);
+                        log('Đã nhận ảnh kéo thả. Vui lòng cắt ảnh!');
+                    } else {
+                        alert('Vui lòng chỉ kéo thả tệp định dạng hình ảnh!');
+                    }
+                }
+            });
+        }
+
+        function loadImageToCropper(file) {
+            const url = URL.createObjectURL(file);
+            const imgElement = document.getElementById('cropper-image');
+            
+            imgElement.onload = () => {
+                if (cropper) cropper.destroy();
+                cropper = new Cropper(imgElement, {
+                    aspectRatio: R4(epdConfig.w / epdConfig.h),
+                    viewMode: 1, 
+                    autoCropArea: 1,
+                });
+            };
+            imgElement.src = url;
+            document.getElementById('cropper-container').style.display = 'block';
         }
 
         // ================= KHỞI TẠO & LẮNG NGHE SỰ KIỆN CHÍNH =================
@@ -576,23 +789,10 @@
                 log(`Đã đổi kích thước màn hình sang ${w}x${h}`);
             });
 
-            // Tải ảnh lên và khởi tạo Cropper
+            // Tải ảnh lên qua nút
             document.getElementById('image-upload').addEventListener('change', e => {
-                const file = e.target.files[0];
-                if (file) {
-                    const url = URL.createObjectURL(file);
-                    const imgElement = document.getElementById('cropper-image');
-                    
-                    imgElement.onload = () => {
-                        if (cropper) cropper.destroy();
-                        cropper = new Cropper(imgElement, {
-                            aspectRatio: R4(epdConfig.w / epdConfig.h),
-                            viewMode: 1, 
-                            autoCropArea: 1,
-                        });
-                    };
-                    imgElement.src = url;
-                    document.getElementById('cropper-container').style.display = 'block';
+                if (e.target.files.length > 0) {
+                    loadImageToCropper(e.target.files[0]);
                 }
             });
 
@@ -621,7 +821,7 @@
                 processImage();
             };
 
-            // Tạo Văn Bản (Chèn Chữ)
+            // Tạo Văn Bản
             document.getElementById('btn-add-text').onclick = () => {
                 const text = document.getElementById('text-input-area').value.trim();
                 if(!text) return alert("Vui lòng nhập văn bản!");
@@ -692,6 +892,9 @@
 
             // Nút tạo Hex
             document.getElementById('btn-generate-hex').onclick = generateHex;
+            
+            // Nút lưu nhanh vào lịch sử
+            document.getElementById('btn-save-history').onclick = saveToHistory;
         }
 
         // ================= XỬ LÝ ẢNH & DITHERING =================
@@ -1061,6 +1264,8 @@
                     await daSendCmdBytes(hexToBytes("01"));
                 }
                 
+                // Tự động lưu lịch sử sau khi gửi thành công
+                saveToHistory();
                 log('Cập nhật thành công!');
             } catch(e) { log('Lỗi: ' + e); } finally { document.getElementById('btn-upload-eink').disabled = false; }
         };
@@ -1106,6 +1311,8 @@
         // Khởi động
         initTheme();
         initEvents();
+        initDragAndDrop();
+        loadHistory();
         ctxS.fillStyle = 'white'; ctxS.fillRect(0,0,212,104);
         processImage();
     </script>
