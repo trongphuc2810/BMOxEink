@@ -1,8 +1,7 @@
-# OI OI OI
+#Dự án điều khiển màn hình E-ink DA14585 và ESP32-C3 qua Bluetooth.
 # BMO e-ink Project
 ## link web
 https://bm-ox-eink.vercel.app/
-Dự án điều khiển màn hình E-ink DA14585 và ESP32-C3 qua Bluetooth.
 ## File in 3d
 các file .stl sẽ cập nhật thêm
 ## Các mô đun cần
