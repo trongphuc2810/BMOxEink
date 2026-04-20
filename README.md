@@ -1,8 +1,8 @@
 # OI OI OI
 # BMO e-ink Project
+## link web
+https://bm-ox-eink.vercel.app/
 Dự án điều khiển màn hình E-ink DA14585 và ESP32-C3 qua Bluetooth.
-## Danh sách file
-- `BMOxeinkbyPhuc.html`: Giao diện điều khiển và xử lý ảnh.
 ## File in 3d
 các file .stl sẽ cập nhật thêm
 ## Các mô đun cần
@@ -17,8 +17,10 @@ các file .stl sẽ cập nhật thêm
 - pin 3.7 v
 - cảm biến ánh sáng TEMT6000
 - còi buzzer
-- ## sơ đồ đấu dây
+## sơ đồ đấu dây
 - <img width="774" height="586" alt="image" src="https://github.com/user-attachments/assets/a09313e7-a2de-47ba-acee-b417f5755844" />
+## đây là thành quả 
+<img width="3024" height="3023" alt="PXL_20260420_163116524" src="https://github.com/user-attachments/assets/653b8386-11ba-4434-9d7e-42799817d959" />
 ## Ghi chú
 - Sẽ cập nhật thêm...
 ## dự án này work with gemini đừng gạch đá tôi nếu nó chưa tốt pls
