@@ -127,7 +127,6 @@
             border: 1px solid var(--glass-border);
             transition: background-color 0.5s, border-color 0.5s, box-shadow 0.5s;
             transform: translateZ(0);
-            /* Bỏ overflow hidden để các phần tử như nút xóa lịch sử có thể nổi ra ngoài */
             overflow: visible;
         }
         
@@ -296,17 +295,16 @@
         }
         body.drag-active #drag-overlay { display: flex; }
 
-        /* FIX LỖI LỊCH SỬ BỊ CHE KHUẤT */
+        /* History Gallery */
         .history-wrapper { 
             margin-top: 20px; 
             width: 100%; 
-            overflow: visible; /* Cho phép các thành phần bên trong nổi ra ngoài ranh giới thẻ cha */
+            overflow: visible; 
         }
         .history-list { 
             display: flex; 
             gap: 20px; 
             overflow-x: auto; 
-            /* Thêm padding phía trên cực lớn để không bị cắt nút xóa khi hover */
             padding: 30px 15px 15px 15px; 
             margin: -20px -15px 0 -15px; 
             scrollbar-width: thin;
@@ -320,7 +318,7 @@
             width: 106px; height: 52px;
             border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             cursor: pointer; 
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Hiệu ứng bung ra chuẩn Apple */
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             background: white; 
             border: 1px solid var(--input-border);
             z-index: 1;
@@ -328,19 +326,19 @@
         .history-item img { width: 100%; height: 100%; object-fit: contain; border-radius: 9px; }
         
         .history-item:hover { 
-            transform: translateY(-10px) scale(1.15); /* Phóng to và nổi hẳn lên */
+            transform: translateY(-10px) scale(1.15); 
             box-shadow: 0 12px 30px rgba(0,0,0,0.2); 
             border-color: var(--apple-blue);
-            z-index: 100; /* Đưa lên lớp trên cùng */
+            z-index: 100; 
         }
         
         .btn-history-delete {
             position: absolute; 
-            top: -12px; /* Đẩy hẳn lên trên ảnh */
+            top: -12px; 
             right: -12px;
             background: var(--apple-red); 
             color: white; 
-            border: 2px solid white; /* Tạo viền trắng cho nút xóa nổi bật */
+            border: 2px solid white; 
             width: 24px; 
             height: 24px; 
             border-radius: 50%;
@@ -406,23 +404,6 @@
                         <input type="text" id="esp-custom-code" class="form-control" placeholder="Prefix (Ví dụ: SYNC_TIME:)" value="SYNC_TIME:">
                         <button id="btn-esp-sync" class="btn btn-success" disabled style="white-space: nowrap;">Gửi Giờ</button>
                     </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Thiết lập Wi-Fi & Thời tiết:</label>
-                    <input type="text" id="wifi-ssid" class="form-control" placeholder="Tên Wi-Fi (SSID)" style="margin-bottom: 6px;">
-                    <input type="password" id="wifi-pass" class="form-control" placeholder="Mật khẩu Wi-Fi" style="margin-bottom: 6px;">
-                    
-                    <label style="font-size: 12px; margin-bottom: 2px;">Vị trí thành phố (City ID):</label>
-                    <select id="wifi-city-id" class="form-control">
-                        <option value="0">Vĩnh Long (ID: 0)</option>
-                        <option value="1">TP. Hồ Chí Minh (ID: 1)</option>
-                        <option value="2">Hà Nội (ID: 2)</option>
-                        <option value="3">Đà Nẵng (ID: 3)</option>
-                        <option value="4">Cần Thơ (ID: 4)</option>
-                    </select>
-                    
-                    <button id="btn-esp-wifi" class="btn btn-primary" disabled style="margin-top: 8px; width: 100%;">Gửi WiFi & Mã Thành Phố</button>
                 </div>
             </div>
         </div>
@@ -791,7 +772,6 @@
                 espChar = await svc.getCharacteristic('beb5483e-36e1-4688-b7f5-ea07361b26a8');
                 document.getElementById('btn-esp-connect').disabled = true; 
                 document.getElementById('btn-esp-sync').disabled = false; 
-                document.getElementById('btn-esp-wifi').disabled = false;
                 log('Kết nối ESP32-C3 thành công!');
             } catch (e) { log('Lỗi ESP32: ' + e); }
         }
@@ -805,33 +785,7 @@
             log(`Gửi giờ: ${timeStr}`);
         }
 
-        async function sendWifiESP() {
-            if(!espChar) return;
-            const ssid = document.getElementById('wifi-ssid').value.trim();
-            const pass = document.getElementById('wifi-pass').value.trim();
-            const cityId = document.getElementById('wifi-city-id').value;
-            
-            if(!ssid) return alert("Vui lòng nhập tên Wi-Fi!");
-            
-            // Lưu lại để lần sau không phải nhập
-            localStorage.setItem('bmo-wifi-ssid', ssid);
-            localStorage.setItem('bmo-wifi-pass', pass);
-            localStorage.setItem('bmo-wifi-city-id', cityId);
-            
-            // Gửi định dạng mới: WIFI:Tên_WiFi|Mật_khẩu|CityID
-            const wifiStr = `WIFI:${ssid}|${pass}|${cityId}`;
-            await espChar.writeValue(new TextEncoder().encode(wifiStr));
-            
-            const cityName = document.getElementById('wifi-city-id').options[document.getElementById('wifi-city-id').selectedIndex].text;
-            log(`🚀 Đã gửi Wi-Fi & Vị trí: ${ssid} | ${cityName}`);
-        }
-
         function initEvents() {
-            const ssid = localStorage.getItem('bmo-wifi-ssid'), pass = localStorage.getItem('bmo-wifi-pass'), cityId = localStorage.getItem('bmo-wifi-city-id');
-            if(ssid) document.getElementById('wifi-ssid').value = ssid;
-            if(pass) document.getElementById('wifi-pass').value = pass;
-            if(cityId) document.getElementById('wifi-city-id').value = cityId;
-
             document.getElementById('epd-size').addEventListener('change', (e) => {
                 const [w, h] = e.target.value.split('x').map(Number);
                 epdConfig.w = w; epdConfig.h = h;
@@ -920,6 +874,11 @@
                 }
             });
 
+            document.getElementById('confirmInterval').addEventListener('input', e => {
+                const valDisplay = document.getElementById('val-interval');
+                if(valDisplay) valDisplay.textContent = e.target.value;
+            });
+
             document.getElementById('epd-dither').addEventListener('change', processImage);
             document.getElementById('btn-generate-hex').onclick = generateHex;
             document.getElementById('btn-save-history').onclick = saveToHistory;
@@ -928,7 +887,6 @@
             document.getElementById('btn-upload-eink').onclick = uploadEink;
             document.getElementById('btn-esp-connect').onclick = connectESP;
             document.getElementById('btn-esp-sync').onclick = syncTimeESP;
-            document.getElementById('btn-esp-wifi').onclick = sendWifiESP;
             document.getElementById('btn-disconnect').onclick = () => { if(daDevice && daDevice.gatt.connected) daDevice.gatt.disconnect(); location.reload(); };
 
             document.getElementById('btn-da-sync').onclick = async () => {
